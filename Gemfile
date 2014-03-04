@@ -1,10 +1,10 @@
 source 'http://rubygems.org'
 
-gem 'rails', '3.2.12'
+gem 'rails', '3.2.14'
 
-gem 'quality-measure-engine', '~> 2.3.0'
+gem 'quality-measure-engine', '2.5.3'
 
-gem "health-data-standards", '~> 3.0.2'
+gem 'health-data-standards', '3.2.11'
 
 gem 'nokogiri'
 gem 'rubyzip'
@@ -47,7 +47,7 @@ group :test, :develop do
 end
 
 group :production do
-  gem 'libv8', '~> 3.11.8.3'
+  gem 'libv8', '~> 3.11.8.3', :platforms => [:ruby, :jruby]
   gem 'therubyracer', '~> 0.11.0beta5', :platforms => [:ruby, :jruby] # 10.8 mountain lion compatibility
 end
 

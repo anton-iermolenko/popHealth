@@ -85,7 +85,7 @@ class MeasuresController < ApplicationController
         render_measure_response(providerIds, params[:jobs]) do |pvId|
           filters = @filters ? @filters.merge('providers' => [pvId]) : {'providers' => [pvId]}
           { 
-            report: QME::QualityReport.new(params[:id], params[:sub_id], 'effective_date' => @effective_date, 'filters' => filters),
+            report: QME::QualityReport.new(params[:id], params[:sub_id], 'effective_date' => @effective_date, 'filters' => filters, 'oid_dictionary' => @oid_dictionary),
             patient_count: @patient_count
           }
         end
@@ -231,30 +231,34 @@ class MeasuresController < ApplicationController
     report[:npi] = provider ? provider.npi : '' 
     report[:tin] = provider ? provider.tin : ''
     report[:results] = []
-    
+
     selected_measures.each do |measure|
       subs_iterator(measure['subs']) do |sub_id|
         report[:results] << extract_result(measure['id'], sub_id, @effective_date, ((provider_report) ? [provider ? provider.id.to_s : nil] : nil))
       end
     end
+
     report
   end
   
   def extract_result(id, sub_id, effective_date, providers=nil)
+    measure = QME::QualityMeasure.new(id, sub_id)
+    oid_dictionary = OidHelper.generate_oid_dictionary(measure.definition)
+
     if (providers)
-      qr = QME::QualityReport.new(id, sub_id, 'effective_date' => effective_date, 'filters' => {'providers' => providers})
+      qr = QME::QualityReport.new(id, sub_id, 'effective_date' => effective_date, 'filters' => {'providers' => providers}, 'oid_dictionary' => oid_dictionary)
     else
-      qr = QME::QualityReport.new(id, sub_id, 'effective_date' => effective_date)
+      qr = QME::QualityReport.new(id, sub_id, 'effective_date' => effective_date, 'oid_dictionary' => oid_dictionary)
     end
     qr.calculate unless qr.calculated?
     result = qr.result
     {
       :id=>id,
       :sub_id=>sub_id,
-      :population=>result['population'],
-      :denominator=>result['denominator'],
-      :numerator=>result['numerator'],
-      :exclusions=>result['exclusions']
+      :population=>result[QME::QualityReport::POPULATION],
+      :denominator=>result[QME::QualityReport::DENOMINATOR],
+      :numerator=>result[QME::QualityReport::NUMERATOR],
+      :exclusions=>result[QME::QualityReport::EXCLUSIONS]
     }
   end
   
@@ -263,14 +267,14 @@ class MeasuresController < ApplicationController
     @patient_count = (@selected_provider) ? @selected_provider.records(@effective_date).count : Record.count
     if params[:id]
       measure = QME::QualityMeasure.new(params[:id], params[:sub_id])
-      render(:file => "#{RAILS_ROOT}/public/404.html", :layout => false, :status => 404) unless measure
+      render(:file => "#{RAILS_ROOT}/public/404.html", :layout => nil, :status => 404) unless measure
       @definition = measure.definition
       @oid_dictionary = OidHelper.generate_oid_dictionary(@definition)
     end
   end
   
   def generate_report(uuid = nil)
-    @quality_report = QME::QualityReport.new(@definition['id'], @definition['sub_id'], 'effective_date' => @effective_date, 'filters' => @filters)
+    @quality_report = QME::QualityReport.new(@definition['id'], @definition['sub_id'], 'effective_date' => @effective_date, 'filters' => @filters, 'oid_dictionary' => @oid_dictionary)
     if @quality_report.calculated?
       @result = @quality_report.result
     else
