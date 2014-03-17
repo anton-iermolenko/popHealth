@@ -37,6 +37,14 @@ namespace :qrda do
     selected_measures = MONGO_DB['selected_measures'].find({username: args.username})
     selected_measure_ids = selected_measures.map { |m| m["id"] }
     measures = MONGO_DB['measures'].find({ id: {'$in' => selected_measure_ids}})
+
+    # Ensure every measure is calculated
+    measures.each do |measure|
+      oid_dictionary = OidHelper.generate_oid_dictionary(measure)
+      qr = QME::QualityReport.new(measure['id'], measure['sub_id'], 'effective_date' => effective_date.to_i, 'oid_dictionary' => oid_dictionary)
+      qr.calculate(false) unless qr.calculated?
+    end
+
     cat3_exporter = HealthDataStandards::Export::Cat3.new
     qrda3_report = cat3_exporter.export(measures, effective_date, period_start, effective_date )
 
@@ -45,4 +53,5 @@ namespace :qrda do
     File.open(outfile, 'w') {|f| f.write(qrda3_report) }
     puts "wrote result to: #{outfile}"
   end
+
 end
