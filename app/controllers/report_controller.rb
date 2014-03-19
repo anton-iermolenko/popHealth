@@ -5,8 +5,11 @@ class ReportController  < ActionController::Metal
     current_user = request.env['warden'].authenticate!
     raise 'Could not authenticate' unless current_user
 
+    raise 'A zip of QRDA Cat 1 patient records is required' unless params[:cat1zip]
+    raise 'Parameters are required' unless params[:generationParams]
+
     Atna.log(current_user.username, :query)
-    raise 'A zip of QRDA Cat 1 patient records is required' unless params[:file]
+    Log.create(:username => current_user.username, :event => 'Requested CQM report')
 
     # Clean all records in database
     QueryCache.all.delete
@@ -15,7 +18,7 @@ class ReportController  < ActionController::Metal
     Provider.all.delete
 
     # Import patient records into database
-    file = params[:file]
+    file = params[:cat1zip]
     i = 0
     temp_file = Tempfile.new("patient_upload")
     File.open(temp_file.path, "wb") { |f| f.write(file.read) }
@@ -30,13 +33,14 @@ class ReportController  < ActionController::Metal
       end
     end
 
-    # Evaluate list of measures and time frame for report
-    effective_date = Time.at(current_user.effective_date)
-    period_start = 3.months.ago(effective_date)
+    # Read parameters
+    generationParams = JSON.parse(params[:generationParams])
+    period_start = Time.at(generationParams['startDate'])
+    effective_date = Time.at(generationParams['endDate'])
+    selected_measure_ids = generationParams['measureIds']
 
-    selected_measures = MONGO_DB['selected_measures'].find({username: current_user.username})
-    selected_measure_ids = selected_measures.map { |m| m["id"] }
-    measures = MONGO_DB['measures'].find({ id: {'$in' => selected_measure_ids}})
+    # Get list of measures
+    measures = MONGO_DB['measures'].find({ id: {'$in' => selected_measure_ids.map { |mId| mId.upcase }}}) #Measure Ids are stored in uppercase
 
     # Ensure every measure is calculated
     measures.each do |measure|
