@@ -49,7 +49,7 @@ class ApplicationController < ActionController::Base
   end
   
   def calc_start(date)
-    3.months.ago(Time.at(date))
+    12.months.ago(Time.at(date)) + 1.day
   end
   
   def check_ssl_used

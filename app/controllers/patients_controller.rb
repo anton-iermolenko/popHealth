@@ -16,7 +16,8 @@ class PatientsController < ApplicationController
         @outliers = []
         @measures = Measure.list
         @measures.each do |measure|
-          executor = QME::MapReduce::Executor.new(measure['id'], measure['sub_id'], {'effective_date' => @effective_date})
+          oid_dictionary = OidHelper.generate_oid_dictionary(measure)
+          executor = QME::MapReduce::Executor.new(measure['id'], measure['sub_id'], {'effective_date' => @effective_date, 'oid_dictionary' => oid_dictionary})
           result = executor.get_patient_result(@patient.medical_record_number)
           if result['antinumerator']
             @outliers << measure
