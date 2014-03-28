@@ -66,23 +66,31 @@ namespace :qrda do
 
     selected_measures = MONGO_DB['selected_measures'].find({username: args.username})
     selected_measure_docs = selected_measures.map do |sm|
-      measure_doc = MONGO_DB['measures'].find({ id: sm["id"]}).first
-      Measure.find_by(id: measure_doc['_id'])
+      MONGO_DB['measures'].find({ id: sm["id"]}).first
     end
 
     # Ensure all records will have a proper bundle id specified (required for export into Cat 1)
     Record.update_all(bundle_id: Bundle.first.id)
 
     # Ensure every measure is calculated
-    selected_measure_docs.each do |measure|
+    selected_measure_docs.each do |measure_doc|
+
+      measure = Measure.find_by(id: measure_doc['_id'])
 
       puts 'In loop of ' + measure.title
 
       oid_dictionary = OidHelper.generate_oid_dictionary(measure)
-      qr = QME::QualityReport.new(measure['id'], measure['sub_id'], 'effective_date' => effective_date.to_i, 'oid_dictionary' => oid_dictionary)
+      qr = QME::QualityReport.new(measure_doc['id'], measure_doc['sub_id'], 'effective_date' => effective_date.to_i, 'oid_dictionary' => oid_dictionary)
       qr.calculate(false) unless qr.calculated?
 
-      Record.each do |patient|
+      measure_included_patients = PatientCache.where('value.measure_id' => measure_doc['id']).where(:'value.IPP'.gt => 0).map do |patient_cache|
+        patient_cache['value']['patient_id']
+      end
+
+      measure_included_patients.each do |patient_id|
+
+        patient = Record.find_by(id: patient_id)
+
         cat1_exporter = HealthDataStandards::Export::Cat1.new
         qrda1_file = cat1_exporter.export(patient, [measure], period_start, effective_date )
 
